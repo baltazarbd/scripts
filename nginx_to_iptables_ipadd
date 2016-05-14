@@ -1,0 +1,39 @@
+#!/bin/bash
+IPTABLCMD='-p tcp -m multiport --dports 80,443 -j ACCEPT'
+IPCHAIN='WHITELIST'
+ADDIP='Add IP'
+DELIP='Delete IP'
+LOG='/var/log/iptables-ip-add'
+for i in `cat /etc/nginx/access/* /etc/nginx/conf.d/iplist-access.include |grep -v '#'|grep allow | cut -f 2 -d " " | tr -d ";" | sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n | uniq`; do
+    IPTABLESIP=`iptables-save | grep WHITELIST   |  grep -c $i `;
+    if [ "$IPTABLESIP" = "0" ]; then
+	iptables -A $IPCHAIN -s $i $IPTABLCMD
+	TESTIP=$?
+	if [ $TESTIP -ne 0 ]; then
+	echo `date +%F_%H:%M:%S` $ADDIP $i '[Failed]'>>$LOG
+	echo -e "\033[01;24m $ADDIP - Bad IP  :  $i [Failed]  \033[00m"
+	else
+	echo  `date +%F_%H:%M:%S` $ADDIP  $i '[ OK ]'>>$LOG
+	echo -e "\033[01;33m $i \033[01;32m $ADDIP to iptables      [ OK ]  \033[00m"
+	fi
+    fi
+done
+
+for i in `iptables-save |grep WHITELIST |cut -f 4 -d " " | sed "s/\/32//g"  | grep -v tcp`; do
+    NGINXIP=`cat /etc/nginx/access/* /etc/nginx/conf.d/iplist-access.include |grep -v '#'  |  grep -c $i `;
+    if [ "$NGINXIP" = "0" ]; then
+	#iptables -D WHITELIST -s $i -p tcp -m multiport --dports 80,443 -j ACCEPT
+	iptables -D $IPCHAIN -s $i $IPTABLCMD
+	TESTIP=$?
+	if [ $TESTIP -ne 0 ]; then
+	echo `date +%F_%H:%M:%S` $DELIP $i '[Failed]' >>$LOG
+	echo -e "\033[01;24m $DELIP Bad IP  :  $i[Failed]  \033[00m"
+	else
+	echo  `date +%F_%H:%M:%S` $DELIP $i '[ OK ]' >>$LOG
+	echo -e "\033[01;33m $i \033[01;32m  $DELIP  in iptables     [ OK ]  \033[00m"
+	fi
+    fi
+done
+
+#save
+/etc/init.d/iptables save
