@@ -1,3 +1,2 @@
 # scripts
 
-tut opisano 
